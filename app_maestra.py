@@ -193,9 +193,9 @@ with col_der:
     if output_pptx and not output_pptx.lower().endswith('.pptx'):
         output_pptx += '.pptx'
 
-    # Detección inteligente de la plantilla (Plantillas_pptx/ -> proyecto/ -> config)
+    # Detección inteligente con normalización de rutas de Windows para servidores Linux
     tpl_raw = getattr(config, 'PLANTILLA_PPTX', getattr(config, 'TEMPLATE_PPTX', 'plantilla.pptx'))
-    nombre_archivo_ppt = os.path.basename(tpl_raw)
+    nombre_archivo_ppt = os.path.basename(str(tpl_raw).replace('\\', '/'))
 
     ruta_en_plantillas = os.path.join(CARPETA_PLANTILLAS, nombre_archivo_ppt)
     ruta_en_proyecto = os.path.join(ruta_proyecto, nombre_archivo_ppt)
