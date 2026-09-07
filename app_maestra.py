@@ -1,5 +1,5 @@
 # ==============================================================================
-# APP MAESTRA DE REPORTES IPN COLABORADORES (VERSIÓN BLINDADA)
+# APP MAESTRA DE REPORTES IPN COLABORADORES (VERSIÓN BLINDADA + DINÁMICA)
 # ==============================================================================
 import io
 import os
@@ -10,6 +10,7 @@ from contextlib import contextmanager, redirect_stdout
 import streamlit as st
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
+CARPETA_PLANTILLAS = os.path.join(RAIZ, "Plantillas_pptx")
 
 
 # ------------------------------------------------------------------------------
@@ -32,7 +33,10 @@ def cambiar_directorio(ruta_destino):
 def descubrir_proyectos():
     """Detecta subcarpetas que contienen al menos config.py y main.py."""
     proyectos = {}
+    carpetas_ignorar = {'.git', '__pycache__', '.streamlit', 'Plantillas_pptx'}
     for nombre in sorted(os.listdir(RAIZ), key=str.lower):
+        if nombre in carpetas_ignorar:
+            continue
         ruta = os.path.join(RAIZ, nombre)
         if (os.path.isdir(ruta)
                 and os.path.exists(os.path.join(ruta, 'config.py'))
@@ -130,25 +134,35 @@ if getattr(config, 'BLOQUES_MENCIONES', None):
 if getattr(config, 'HISTORICO', None):
     resumen.append("seguimiento histórico")
 
-st.info(f"**Unidad seleccionada:** {nombre_proyecto} | **Estructura:** {', '.join(resumen) if resumen else 'Ver config.py'}")
+st.info(
+    f"**Unidad seleccionada:** {nombre_proyecto} | **Estructura:** {', '.join(resumen) if resumen else 'Ver config.py'}")
 
 col_izq, col_der = st.columns(2)
 
-# --- 2. BASES DE ENTRADA ---
+# --- 2. BASES DE ENTRADA (CON PERSISTENCIA) ---
 with col_izq:
     st.subheader("1. Insumos (Bases de datos)")
     modo = st.radio("Método de entrada:", ["Escribir ruta local", "Subir archivos Excel"], horizontal=True)
 
-    ruta_actual = None
-    ruta_anterior = None
+    key_act = f"path_act_{nombre_proyecto}"
+    key_ant = f"path_ant_{nombre_proyecto}"
+
+    if key_act not in st.session_state:
+        st.session_state[key_act] = None
+    if key_ant not in st.session_state:
+        st.session_state[key_ant] = None
 
     if modo == "Subir archivos Excel":
         up_actual = st.file_uploader("Base trimestre ACTUAL", type=['xlsx', 'xlsm'], key=f'act_{nombre_proyecto}')
         up_anterior = st.file_uploader("Base trimestre ANTERIOR", type=['xlsx', 'xlsm'], key=f'ant_{nombre_proyecto}')
-        if up_actual:
-            ruta_actual = _guardar_upload(up_actual)
-        if up_anterior:
-            ruta_anterior = _guardar_upload(up_anterior)
+
+        if up_actual is not None:
+            st.session_state[key_act] = _guardar_upload(up_actual)
+        if up_anterior is not None:
+            st.session_state[key_ant] = _guardar_upload(up_anterior)
+
+        ruta_actual = st.session_state[key_act]
+        ruta_anterior = st.session_state[key_ant]
     else:
         def_actual = getattr(config, 'FILE_ACTUAL', '')
         def_anterior = getattr(config, 'FILE_ANTERIOR', '')
@@ -159,7 +173,7 @@ with col_izq:
             if path and not os.path.exists(path):
                 st.caption(f":orange[Nota: La ruta {tag} no existe en este disco actualmente.]")
 
-# --- 3. CONFIGURACIÓN DEL PERIODO Y PLANTILLA ---
+# --- 3. CONFIGURACIÓN DEL PERIODO Y PLANTILLA PPTX ---
 with col_der:
     st.subheader("2. Parámetros del Reporte")
     c_periodo1, c_periodo2 = st.columns(2)
@@ -179,25 +193,38 @@ with col_der:
     if output_pptx and not output_pptx.lower().endswith('.pptx'):
         output_pptx += '.pptx'
 
+    # Detección inteligente de la plantilla (Plantillas_pptx/ -> proyecto/ -> config)
+    tpl_raw = getattr(config, 'PLANTILLA_PPTX', getattr(config, 'TEMPLATE_PPTX', 'plantilla.pptx'))
+    nombre_archivo_ppt = os.path.basename(tpl_raw)
+
+    ruta_en_plantillas = os.path.join(CARPETA_PLANTILLAS, nombre_archivo_ppt)
+    ruta_en_proyecto = os.path.join(ruta_proyecto, nombre_archivo_ppt)
+
+    if os.path.exists(ruta_en_plantillas):
+        plantilla_default = ruta_en_plantillas
+    elif os.path.exists(ruta_en_proyecto):
+        plantilla_default = ruta_en_proyecto
+    else:
+        plantilla_default = tpl_raw
+
     with st.expander("Plantilla PowerPoint"):
-        tpl_def = getattr(config, 'TEMPLATE_PPTX', 'plantilla.pptx')
-        template_pptx = st.text_input("Ruta/Nombre plantilla:", value=tpl_def)
+        template_pptx = st.text_input("Ruta/Nombre plantilla:", value=plantilla_default)
+        if not os.path.exists(template_pptx):
+            st.warning(
+                f"⚠ No se localizó el archivo: `{template_pptx}`. Verifica que exista en la carpeta `Plantillas_pptx/`.")
 
 # --- 4. EJECUCIÓN ---
 st.write("---")
-listo = bool(ruta_actual) and bool(ruta_anterior) and bool(output_pptx)
+listo = bool(ruta_actual) and bool(ruta_anterior) and bool(output_pptx) and os.path.exists(template_pptx)
 
 if st.button(f"🚀 Ejecutar automatización para {nombre_proyecto}", type="primary", disabled=not listo):
-    # Se genera el archivo dentro de la carpeta del proyecto correspondiente
-    ruta_salida_destino = os.path.join(ruta_proyecto, output_pptx)
+    ruta_salida_destino = os.path.join(tempfile.gettempdir(), output_pptx)
     log_buffer = io.StringIO()
 
     try:
         with st.spinner(f"Procesando métricas e inyectando gráficos en {nombre_proyecto}..."):
             with redirect_stdout(log_buffer):
-                # Se cambia el CWD a la carpeta del proyecto durante la ejecución
                 with cambiar_directorio(ruta_proyecto):
-                    # Verificación del formato de llamada según main.py
                     if hasattr(pipeline, 'ejecutar_reporte'):
                         resultado = pipeline.ejecutar_reporte(
                             file_actual=ruta_actual,
@@ -208,13 +235,29 @@ if st.button(f"🚀 Ejecutar automatización para {nombre_proyecto}", type="prim
                         )
                         ruta_salida = resultado[0] if isinstance(resultado, tuple) else ruta_salida_destino
                         errores = resultado[1] if isinstance(resultado, tuple) and len(resultado) > 1 else []
+                    elif hasattr(pipeline, 'ejecutar_automatizacion'):
+                        config.FILE_ACTUAL = ruta_actual
+                        config.FILE_ANTERIOR = ruta_anterior
+                        config.ETIQUETA_TRIMESTRE = nuevo_periodo
+                        config.PLANTILLA_PPTX = template_pptx
+                        config.OUTPUT_PPTX = ruta_salida_destino
+
+                        pipeline.ejecutar_automatizacion(
+                            ruta_actual=ruta_actual,
+                            ruta_anterior=ruta_anterior,
+                            etiqueta=nuevo_periodo,
+                            output_pptx=ruta_salida_destino
+                        )
+                        ruta_salida = ruta_salida_destino
+                        errores = []
                     else:
-                        raise AttributeError("El archivo main.py no contiene la función 'ejecutar_reporte'.")
+                        raise AttributeError(
+                            "No se encontró 'ejecutar_reporte' ni 'ejecutar_automatizacion' en main.py.")
 
         if errores:
             st.warning(f"Completado con advertencias en los bloques: {', '.join(map(str, errores))}")
         else:
-            st.success(f"✔ Presentación generada exitosamente.")
+            st.success("✔ Presentación generada exitosamente.")
 
         st.caption(f"Ubicación: `{ruta_salida}`")
 
