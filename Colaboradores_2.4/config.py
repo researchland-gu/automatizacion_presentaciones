@@ -9,10 +9,12 @@
 # ------------------------------------------------------------------------------
 # RUTAS
 # ------------------------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 FILE_ACTUAL = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 1Q 2026.xlsx'
 FILE_ANTERIOR = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 4Q 2025 liberada.xlsx'
-FILE_HISTORICO = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Colaboradores\Base_historica_Colaboradores.xlsx'
-FILE_HISTORICO_AGRUPADORES = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Colaboradores\Base_historica_Grupo_Empresarial.xlsx'
+FILE_HISTORICO = os.path.join(BASE_DIR, 'Base_historica_Colaboradores.xlsx')
+FILE_HISTORICO_AGRUPADORES = os.path.join(BASE_DIR, 'Base_historica_Grupo_Empresarial.xlsx')
 
 # OJO: tus scripts originales usaban 2 plantillas distintas
 # (la de "Satisfaccion y Asuntos Publicos" para slides 3-4 y "Reporte_Automatizado"
