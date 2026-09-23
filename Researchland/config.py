@@ -13,10 +13,13 @@
 # NOTA: en este reporte NINGÚN bloque filtra TIPO == 'Normal' (fiel a los
 # scripts originales) y las etiquetas de geografía usan guion (' - ').
 # ==============================================================================
+import os
 
 # ------------------------------------------------------------------------------
 # RUTAS
 # ------------------------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 FILE_ACTUAL = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 1Q 2026.xlsx'
 FILE_ANTERIOR = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 4Q 2025 liberada.xlsx'
 TEMPLATE_PPTX = r'E:\Users\954108\Desktop\Satisfaccion  y Asuntos Publicos\Automatizaciones_PPT\IPN Colaboradores\IPN_Colaboradores Researchland_automatizada.pptx'
@@ -168,7 +171,7 @@ MOTIVOS_POSITIVOS = [
 # Filtro: calificación válida + Respondida == 'Si' + Nivel 4 == RESEARCH LAND
 # (sin filtro de TIPO, fiel al script original).
 # ------------------------------------------------------------------------------
-FILE_HISTORICO_RL = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_historica_RL.xlsx'
+FILE_HISTORICO_RL = os.path.join(BASE_DIR, 'Base_historica_RL.xlsx')
 
 HISTORICO_RL = {
     'slide_index': 5,
