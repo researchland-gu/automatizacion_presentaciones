@@ -5,6 +5,7 @@
 #   2. Actualiza NUEVO_PERIODO para el histórico
 #   3. Si la plantilla cambió de nombres de shapes o índices, ajústalos aquí
 # ==============================================================================
+import os
 
 # ------------------------------------------------------------------------------
 # RUTAS
