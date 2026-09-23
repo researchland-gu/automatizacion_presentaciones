@@ -9,10 +9,13 @@
 # 4, 6 y 8, y las tablas de menciones Tabla_PRO/PAS/DET_MENS_UPAX de los
 # slides 9-11).
 # ==============================================================================
+import os
 
 # ------------------------------------------------------------------------------
 # RUTAS
 # ------------------------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 FILE_ACTUAL = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 1Q 2026.xlsx'
 FILE_ANTERIOR = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 4Q 2025 liberada.xlsx'
 TEMPLATE_PPTX = r'E:\Users\954108\Desktop\Satisfaccion  y Asuntos Publicos\Automatizaciones_PPT\IPN Colaboradores\IPN_Colaboradores UPAX_automatizada.pptx'
@@ -72,7 +75,7 @@ BLOQUES_NPS = [
 # del periodo y 4 tablas de diferencia vs el levantamiento anterior (flecha
 # Webdings verde/roja + porcentaje).
 # ------------------------------------------------------------------------------
-FILE_HISTORICO_UPAX = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Upax\Base_historica_dcho.xlsx'
+FILE_HISTORICO_UPAX = os.path.join(BASE_DIR, 'Base_historica_dcho.xlsx')
 
 HISTORICO_UPAX = {
     'slide_index': 7,
