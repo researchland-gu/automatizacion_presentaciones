@@ -153,11 +153,16 @@ def inyectar_tabla_desglose(shape, df_resumen):
     Las filas cuyo segmento tiene 0 válidos quedan completamente en blanco."""
     tabla = shape.table
     num_cols = len(tabla.columns)
+    num_filas_datos_tabla = len(tabla.rows) - 1
+    if len(df_resumen) > num_filas_datos_tabla:
+        print(f"⚠ ADVERTENCIA: '{shape.name}' tiene {num_filas_datos_tabla} filas de datos "
+              f"pero hay {len(df_resumen)} segmentos; sobran {len(df_resumen) - num_filas_datos_tabla} "
+              f"que NO se van a mostrar. Agrega filas a la plantilla si hace falta.")
 
     for i, row in df_resumen.iterrows():
         f_idx = i + 1  # Fila 0 es el encabezado
         if f_idx >= len(tabla.rows):
-            break
+            continue
 
         nombre_negocio = row[df_resumen.columns[0]]
         validos = row['Validos']
@@ -250,11 +255,16 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
     if shape_dif is not None:
         tabla = shape_dif.table
         num_cols = len(tabla.columns)
+        num_filas_datos_tabla = len(tabla.rows) - 1
+        if len(df_final) > num_filas_datos_tabla:
+            print(f"⚠ ADVERTENCIA: '{bloque['tabla_dif']}' tiene {num_filas_datos_tabla} filas de datos "
+                  f"pero hay {len(df_final)} segmentos; sobran {len(df_final) - num_filas_datos_tabla} "
+                  f"que NO se van a mostrar. Agrega filas a la plantilla si hace falta.")
 
         for i, row_data in df_final.iterrows():
             f_idx = i + 1
             if f_idx >= len(tabla.rows):
-                break
+                continue
 
             # Fila sin casos en el periodo actual: se limpia por completo
             if _es_cero(row_data['n_4q']):
@@ -284,10 +294,16 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
             if num_cols > 1:
                 tabla.cell(f_idx, 1).text = fmt_pct(row_data['ipn_4q'])
             if num_cols > 2:
-                tabla.cell(f_idx, 2).text = fmt_pct(row_data['ipn_3q'])
+                # FIX: con el merge how='left', un segmento nuevo (sin datos en
+                # el periodo anterior) trae NaN en vez de 0; se muestra '–' en
+                # vez de '0.0%' para no dar a entender que el IPN anterior fue cero.
+                ipn_3q = row_data['ipn_3q']
+                tabla.cell(f_idx, 2).text = '–' if pd.isna(ipn_3q) else fmt_pct(ipn_3q)
             if num_cols > 3:
                 d_val = row_data['dif']
-                if _es_cero(d_val):
+                if pd.isna(d_val):
+                    tabla.cell(f_idx, 3).text = '–'
+                elif _es_cero(d_val):
                     tabla.cell(f_idx, 3).text = ''
                 else:
                     signo = "+" if d_val > 0 else ""
@@ -741,12 +757,17 @@ def inyectar_menciones_rubro(slide, nombre_tabla, top_motivos):
 
     tabla = shape.table
     num_cols = len(tabla.columns)
+    num_filas_datos_tabla = len(tabla.rows) - 1
+    if len(top_motivos) > num_filas_datos_tabla:
+        print(f"⚠ ADVERTENCIA: '{nombre_tabla}' tiene {num_filas_datos_tabla} filas de datos "
+              f"pero hay {len(top_motivos)} motivos; sobran {len(top_motivos) - num_filas_datos_tabla} "
+              f"que NO se van a mostrar. Agrega filas a la plantilla si hace falta.")
     print(f"Inyectando Top {len(top_motivos)} de motivos en '{nombre_tabla}'...")
 
     for i, row_data in top_motivos.iterrows():
         f_idx = i + 1
         if f_idx >= len(tabla.rows):
-            break
+            continue
 
         motivo = str(row_data['Motivo'])
         color = obtener_color_mencion(motivo)
