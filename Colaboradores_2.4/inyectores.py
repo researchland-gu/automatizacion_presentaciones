@@ -153,11 +153,21 @@ def inyectar_tabla_desglose(shape, df_resumen):
     Las filas cuyo segmento tiene 0 válidos quedan completamente en blanco."""
     tabla = shape.table
     num_cols = len(tabla.columns)
+    num_filas_datos_tabla = len(tabla.rows) - 1  # sin contar encabezado
+
+    # FIX: aviso explícito si la plantilla no alcanza para todos los
+    # segmentos, en vez de truncar el resto en silencio con un `break`.
+    if len(df_resumen) > num_filas_datos_tabla:
+        print(f"ADVERTENCIA: '{shape.name}' tiene {num_filas_datos_tabla} renglones de datos "
+              f"pero hay {len(df_resumen)} segmentos que reportar. Los segmentos sobrantes "
+              f"no se escribirán: agrega renglones a la plantilla si esto no es esperado.")
 
     for i, row in df_resumen.iterrows():
         f_idx = i + 1  # Fila 0 es el encabezado
         if f_idx >= len(tabla.rows):
-            break
+            # FIX: continue en vez de break, para no perder de vista si hay
+            # más filas después (aunque hoy df_resumen ya viene ordenado).
+            continue
 
         nombre_negocio = row[df_resumen.columns[0]]
         validos = row['Validos']
@@ -244,11 +254,22 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
     if shape_dif is not None:
         tabla = shape_dif.table
         num_cols = len(tabla.columns)
+        num_filas_datos_tabla = len(tabla.rows) - 1  # sin contar encabezado
+
+        # FIX: aviso explícito si la plantilla no tiene renglones suficientes
+        # para todos los segmentos de este trimestre, en vez de truncar el
+        # resto de la tabla en silencio con un `break`.
+        if len(df_final) > num_filas_datos_tabla:
+            print(f"ADVERTENCIA: '{bloque['tabla_dif']}' tiene {num_filas_datos_tabla} renglones de datos "
+                  f"pero hay {len(df_final)} segmentos que reportar. Los segmentos sobrantes NO se "
+                  f"escribirán: agrega renglones a la plantilla o revisa el bloque en config.py.")
 
         for i, row_data in df_final.iterrows():
             f_idx = i + 1
             if f_idx >= len(tabla.rows):
-                break
+                # FIX: continue en vez de break — ya se avisó arriba; esto
+                # solo evita que una fila de más rompa el resto del loop.
+                continue
 
             # Fila sin casos en el periodo actual: se limpia por completo
             if _es_cero(row_data['n_4q']):
@@ -278,10 +299,18 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
             if num_cols > 1:
                 tabla.cell(f_idx, 1).text = fmt_pct(row_data['ipn_4q'])
             if num_cols > 2:
-                tabla.cell(f_idx, 2).text = fmt_pct(row_data['ipn_3q'])
+                # FIX: si no hay dato del periodo anterior para este segmento
+                # (nuevo este trimestre, o simplemente sin match), se muestra
+                # '–' en vez de '0.0%' — antes fmt_pct(NaN) también daba ''
+                # correctamente, pero ahora con how='left' en calculos.py es
+                # más frecuente que pase, así que se deja explícito.
+                ipn_ant = row_data['ipn_3q']
+                tabla.cell(f_idx, 2).text = fmt_pct(ipn_ant) if not pd.isna(ipn_ant) else '–'
             if num_cols > 3:
                 d_val = row_data['dif']
-                if _es_cero(d_val):
+                if pd.isna(d_val):
+                    tabla.cell(f_idx, 3).text = '–'
+                elif _es_cero(d_val):
                     tabla.cell(f_idx, 3).text = ''
                 else:
                     signo = "+" if d_val > 0 else ""

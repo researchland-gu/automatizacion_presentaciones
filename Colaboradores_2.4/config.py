@@ -17,8 +17,8 @@ FILE_HISTORICO_AGRUPADORES = r'E:\Users\954108\Desktop\codigos_py\Presentaciones
 # OJO: tus scripts originales usaban 2 plantillas distintas
 # (la de "Satisfaccion y Asuntos Publicos" para slides 3-4 y "Reporte_Automatizado"
 # para el resto). Verifica cuál es la definitiva y ponla aquí.
-TEMPLATE_PPTX = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Reporte_Automatizado.pptx'
-OUTPUT_PPTX = 'Reporte_Automatizado_completo.pptx'
+TEMPLATE_PPTX = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Plantillas_pptx\Reporte Ejecutivo IPN Colaboradores_automatizada.pptx'
+OUTPUT_PPTX = 'Reporte Ejecutivo IPN Colaboradores.pptx'
 
 # Etiqueta del nuevo periodo en la gráfica histórica (eje X)
 NUEVO_PERIODO = "2Q´26"
@@ -301,7 +301,7 @@ ESTILOS_TARJETAS = {
 MOTIVOS_NEGATIVOS = [
     "No hay apoyo de Capital Humano", "Hay demasiada presión para los colaboradores",
     "No se preocupan por sus colaboradores", "No se cotiza al 100%", "No cumplen lo que promete",
-    "NO SABE / NO CONTESTÓ", "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
+    "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
     "Solo un día de descanso / descanso entre semana", "Me hacen descuentos adicionales (merma, faltantes, errores)",
     "No hay suficientes prestaciones/beneficios",
     "El trabajo no es para cualquier persona / debe ser apto para el puesto",

@@ -25,18 +25,36 @@ CATS_VALIDAS = ['Detractor', 'Pasivo', 'Promotor']
 
 
 def construir_mapeo_geografia(df, col_nivel, col_resp):
-    """Diccionario dinámico {nivel -> 'Nivel - Responsable'} en Title Case."""
+    """Diccionario dinámico {nivel -> 'Nivel - Responsable'} en Title Case.
+
+    FIX: si un mismo nivel tiene más de un responsable capturado, antes se
+    quedaba con el ÚLTIMO que aparecía en drop_duplicates() (orden arbitrario
+    del DataFrame). Ahora se usa el MÁS FRECUENTE (moda) y se avisa en
+    consola cuando hay ambigüedad, para que el nombre mostrado sea estable
+    entre corridas aunque no cambien los datos reales.
+    """
     df[col_nivel] = df[col_nivel].fillna(' ').astype(str)
     df[col_resp] = df[col_resp].fillna('Sin Responsable').astype(str)
 
     mapeo = {}
-    for n_orig, resp_orig in df[[col_nivel, col_resp]].drop_duplicates().values:
+    conteo_resp_por_nivel = df.groupby(col_nivel)[col_resp].apply(lambda s: s.str.strip().value_counts())
+
+    for n_orig in df[col_nivel].unique():
         n_limpio = n_orig.strip()
-        resp_limpio = resp_orig.strip()
         if n_limpio == "":
             mapeo[n_orig] = 'Sin Etiqueta'
+            continue
+
+        conteo = conteo_resp_por_nivel.get(n_orig)
+        if conteo is None or len(conteo) == 0:
+            resp_limpio = 'Sin Responsable'
         else:
-            mapeo[n_orig] = f"{n_limpio.title()} - {resp_limpio.title()}"
+            if len(conteo) > 1:
+                print(f"AVISO: el nivel '{n_orig}' tiene {len(conteo)} responsables distintos "
+                      f"({list(conteo.index)}); se usará el más frecuente: '{conteo.index[0]}'.")
+            resp_limpio = conteo.index[0]
+
+        mapeo[n_orig] = f"{n_limpio.title()} - {resp_limpio.title()}"
     return mapeo
 
 
@@ -71,7 +89,14 @@ def calcular_participacion_nps(df_raw, filtro_col, filtro_val):
 # ------------------------------------------------------------------------------
 def preparar_base_nps(df_raw, bloque, excluir_no_identificados=True):
     """Aplica a la base cruda el mapeo de geografía y la cascada de filtros
-    de un bloque NPS. Devuelve el DataFrame filtrado listo para calcular."""
+    de un bloque NPS. Devuelve el DataFrame filtrado listo para calcular.
+
+    FIX: además de 'tipo_geografia_general' (la etiqueta con nombre, para
+    mostrar), se conserva 'clave_nivel' (el valor crudo de nivel_col, sin
+    nombre de responsable) como llave estable para cruzar periodos — el
+    nombre del responsable puede cambiar de un trimestre a otro sin que
+    cambie el canal/nivel real.
+    """
     df = df_raw.copy()
     nivel_col = bloque['nivel_col']
 
@@ -79,10 +104,12 @@ def preparar_base_nps(df_raw, bloque, excluir_no_identificados=True):
         df = df[df[nivel_col] != 'CASOS NO IDENTIFICADOS'].copy()
 
     mapeo = construir_mapeo_geografia(df, nivel_col, bloque['resp_col'])
-    df['tipo_geografia_general'] = df[nivel_col].map(mapeo)
+    df['clave_nivel'] = df[nivel_col].fillna(' ').astype(str)
+    df['tipo_geografia_general'] = df['clave_nivel'].map(mapeo)
     df['calificacion_nps'] = df['Calificacion'].apply(clasificar_nps)
 
     df = df[df['calificacion_nps'].isin(CATS_VALIDAS)].copy()
+    df = df[df['TIPO'] == 'Normal'].copy()
     df = df[df['Respondida'] == 'Si'].copy()
 
     for col, val in bloque['filtros']:
@@ -116,31 +143,55 @@ def calcular_datos_barras(df, etiqueta_total):
 
 
 def calcular_resumen_nps(df, etiqueta_total):
-    """n e IPN por segmento, más la fila del total."""
-    resumen = df.groupby('tipo_geografia_general').apply(lambda x: pd.Series({
-        'n': float(len(x)),
-        'ipn': round((x['calificacion_nps'].value_counts(normalize=True).get('Promotor', 0) * 100), 5) -
-               round((x['calificacion_nps'].value_counts(normalize=True).get('Detractor', 0) * 100), 5)
-    }), include_groups=False).reset_index()
+    """n e IPN por segmento (agrupado por 'clave_nivel', la llave cruda y
+    estable), más la fila del total. 'tipo_geografia_general' se conserva
+    solo como etiqueta de despliegue (usa el nombre del periodo de `df`)."""
+    def _resumen_grupo(x):
+        vc = x['calificacion_nps'].value_counts(normalize=True)
+        return pd.Series({
+            'tipo_geografia_general': x['tipo_geografia_general'].iloc[0],
+            'n': float(len(x)),
+            'ipn': round(vc.get('Promotor', 0) * 100, 5) - round(vc.get('Detractor', 0) * 100, 5),
+        })
+
+    resumen = df.groupby('clave_nivel').apply(_resumen_grupo, include_groups=False).reset_index()
 
     t_n = float(len(df))
-    t_ipn = round((df['calificacion_nps'].value_counts(normalize=True).get('Promotor', 0) * 100), 5) - \
-            round((df['calificacion_nps'].value_counts(normalize=True).get('Detractor', 0) * 100), 5)
+    vc_tot = df['calificacion_nps'].value_counts(normalize=True)
+    t_ipn = round(vc_tot.get('Promotor', 0) * 100, 5) - round(vc_tot.get('Detractor', 0) * 100, 5)
 
-    df_total = pd.DataFrame([{'tipo_geografia_general': etiqueta_total, 'n': t_n, 'ipn': t_ipn}])
+    df_total = pd.DataFrame([{
+        'clave_nivel': 'TOTAL', 'tipo_geografia_general': etiqueta_total, 'n': t_n, 'ipn': t_ipn
+    }])
     return pd.concat([df_total, resumen], ignore_index=True)
 
 
 def calcular_diferencia_periodos(df_actual, df_anterior, etiqueta_total):
-    """Cruza periodo actual vs anterior; devuelve DataFrame listo para inyectar."""
+    """Cruza periodo actual vs anterior; devuelve DataFrame listo para inyectar.
+
+    FIX: el cruce se hace por 'clave_nivel' (el nivel jerárquico crudo) en
+    vez de 'tipo_geografia_general' (la etiqueta con nombre de responsable),
+    y con how='left' en vez del 'inner' implícito anterior. Antes, si el
+    responsable de un canal cambiaba entre trimestres, la etiqueta ya no
+    coincidía, el inner join no encontraba pareja, y el canal completo
+    desaparecía de la tabla sin aviso — arrastrando además a todos los
+    renglones siguientes fuera de su posición. Ahora el canal siempre
+    aparece (con '-' si no hay dato anterior), usando el nombre del
+    responsable ACTUAL para mostrarlo.
+    """
     data_actual = calcular_resumen_nps(df_actual, etiqueta_total)
     data_anterior = calcular_resumen_nps(df_anterior, etiqueta_total)
 
-    df_final = data_actual.merge(data_anterior, on='tipo_geografia_general', suffixes=('_4q', '_3q'))
+    df_final = data_actual.merge(
+        data_anterior[['clave_nivel', 'n', 'ipn']],
+        on='clave_nivel',
+        how='left',
+        suffixes=('_4q', '_3q'),
+    )
     df_final['dif'] = df_final['ipn_4q'] - df_final['ipn_3q']
 
-    df_total_row = df_final[df_final['tipo_geografia_general'] == etiqueta_total]
-    df_segmentos = df_final[df_final['tipo_geografia_general'] != etiqueta_total].copy()
+    df_total_row = df_final[df_final['clave_nivel'] == 'TOTAL']
+    df_segmentos = df_final[df_final['clave_nivel'] != 'TOTAL'].copy()
     df_segmentos = df_segmentos.sort_values(by='n_4q', ascending=False)
 
     return pd.concat([df_total_row, df_segmentos], ignore_index=True)
