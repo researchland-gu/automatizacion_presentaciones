@@ -101,7 +101,7 @@ ESTILOS_TARJETAS = {
 MOTIVOS_NEGATIVOS = [
     "No hay apoyo de Capital Humano", "Hay demasiada presión para los colaboradores",
     "No se preocupan por sus colaboradores", "No se cotiza al 100%", "No cumplen lo que promete",
-    "NO SABE / NO CONTESTÓ", "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
+    "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
     "Solo un día de descanso / descanso entre semana", "Me hacen descuentos adicionales (merma, faltantes, errores)",
     "No hay suficientes prestaciones/beneficios",
     "El trabajo no es para cualquier persona / debe ser apto para el puesto",
