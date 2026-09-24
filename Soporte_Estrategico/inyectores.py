@@ -240,6 +240,30 @@ def inyectar_grafica_barras(slide, nombre_grafico, categorias, lista_det, lista_
     print(f"Gráfica de barras '{nombre_grafico}' actualizada con éxito.")
 
 
+def agregar_fila_tabla(shape):
+    """Clona el último renglón de datos de la tabla y lo agrega al final,
+    preservando su formato/tamaño real (la fila clonada queda sin texto).
+    Análogo a agregar_columna_tabla(), pero agregando renglones en vez de
+    columnas — usado por Tabla_DIF_ cuando hay más segmentos que filas."""
+    tbl = shape._element.graphic.graphicData.tbl
+    trs = tbl.findall(qn('a:tr'))
+    if not trs:
+        return
+
+    last_tr = trs[-1]
+    new_tr = copy.deepcopy(last_tr)
+
+    # Vaciamos el texto previo del clon, celda por celda
+    for tc in new_tr.findall(qn('a:tc')):
+        txBody = tc.find(qn('a:txBody'))
+        if txBody is not None:
+            for p in txBody.findall(qn('a:p')):
+                for r in p.findall(qn('a:r')):
+                    p.remove(r)
+
+    last_tr.addnext(new_tr)
+
+
 def inyectar_tablas_diferencia(slide, bloque, df_final):
     etiqueta_total = bloque['etiqueta_total']
     try:
@@ -256,10 +280,18 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
         tabla = shape_dif.table
         num_cols = len(tabla.columns)
         num_filas_datos_tabla = len(tabla.rows) - 1
+
+        # Si hay más segmentos que renglones de datos en la plantilla, se
+        # agregan renglones nuevos (clonados del último, mismo tamaño/formato)
+        # hasta que quepan todos los segmentos, en vez de truncar en silencio.
         if len(df_final) > num_filas_datos_tabla:
-            print(f"⚠ ADVERTENCIA: '{bloque['tabla_dif']}' tiene {num_filas_datos_tabla} filas de datos "
-                  f"pero hay {len(df_final)} segmentos; sobran {len(df_final) - num_filas_datos_tabla} "
-                  f"que NO se van a mostrar. Agrega filas a la plantilla si hace falta.")
+            filas_faltantes = len(df_final) - num_filas_datos_tabla
+            for _ in range(filas_faltantes):
+                agregar_fila_tabla(shape_dif)
+            print(f"  -> Se agregaron {filas_faltantes} renglón(es) a '{bloque['tabla_dif']}' "
+                  f"para ajustarse a los {len(df_final)} segmentos encontrados.")
+            tabla = shape_dif.table  # refrescar referencia tras modificar el XML
+            num_filas_datos_tabla = len(tabla.rows) - 1
 
         for i, row_data in df_final.iterrows():
             f_idx = i + 1
