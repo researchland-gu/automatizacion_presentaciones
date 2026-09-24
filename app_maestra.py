@@ -9,6 +9,9 @@ import importlib.util
 from contextlib import contextmanager, redirect_stdout
 import streamlit as st
 
+from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
+
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 CARPETA_PLANTILLAS = os.path.join(RAIZ, "Plantillas_pptx")
 
@@ -87,6 +90,62 @@ def _guardar_upload(uploaded_file):
     tmp.write(uploaded_file.getbuffer())
     tmp.close()
     return tmp.name
+
+
+# ------------------------------------------------------------------------------
+# CÁLCULO AUTOMÁTICO DEL TRIMESTRE ANTERIOR
+# ------------------------------------------------------------------------------
+def calcular_periodo_anterior(trimestre, anio):
+    """A partir de '2Q' y 2026 devuelve ('1Q', 2026).
+    Si el trimestre es '1Q', el anterior es '4Q' del año pasado."""
+    idx = int(trimestre[0])  # '1Q' -> 1, '2Q' -> 2, etc.
+    if idx == 1:
+        return '4Q', anio - 1
+    return f"{idx - 1}Q", anio
+
+
+# ------------------------------------------------------------------------------
+# BUSCAR Y REEMPLAZAR TEXTO EN TODA LA PRESENTACIÓN GENERADA
+# ------------------------------------------------------------------------------
+def _reemplazar_en_shapes(shapes, reemplazos):
+    """Recorre shapes (incluyendo grupos y tablas) y reemplaza texto run por
+    run, preservando el formato de cada run."""
+    contador = 0
+    for shape in shapes:
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+            contador += _reemplazar_en_shapes(shape.shapes, reemplazos)
+            continue
+
+        if shape.has_text_frame:
+            for p in shape.text_frame.paragraphs:
+                for run in p.runs:
+                    for viejo, nuevo in reemplazos.items():
+                        if viejo in run.text:
+                            run.text = run.text.replace(viejo, nuevo)
+                            contador += 1
+
+        if shape.has_table:
+            for row in shape.table.rows:
+                for cell in row.cells:
+                    for p in cell.text_frame.paragraphs:
+                        for run in p.runs:
+                            for viejo, nuevo in reemplazos.items():
+                                if viejo in run.text:
+                                    run.text = run.text.replace(viejo, nuevo)
+                                    contador += 1
+    return contador
+
+
+def reemplazar_periodos_en_presentacion(ruta_pptx, reemplazos):
+    """Abre la presentación ya generada, reemplaza los textos indicados en
+    TODAS las diapositivas (incluyendo tablas y shapes agrupadas) y la
+    vuelve a guardar en la misma ruta. Devuelve cuántos reemplazos hizo."""
+    prs = Presentation(ruta_pptx)
+    total = 0
+    for slide in prs.slides:
+        total += _reemplazar_en_shapes(slide.shapes, reemplazos)
+    prs.save(ruta_pptx)
+    return total
 
 
 # ------------------------------------------------------------------------------
@@ -183,7 +242,19 @@ with col_der:
         anio = st.number_input("Año", min_value=2024, max_value=2030, value=2026, step=1)
 
     nuevo_periodo = f"{trimestre}´{str(anio)[-2:]}"
-    st.caption(f"Etiqueta generada: **{nuevo_periodo}**")
+
+    # Trimestre/año anterior calculados automáticamente a partir del actual
+    trimestre_anterior, anio_anterior = calcular_periodo_anterior(trimestre, anio)
+
+    # Textos que se buscan y reemplazan dentro de la presentación generada
+    periodo_actual_texto = f"{trimestre} {anio}"
+    periodo_anterior_texto = f"{trimestre_anterior} {anio_anterior}"
+
+    st.caption(
+        f"Etiqueta generada: **{nuevo_periodo}** &nbsp;|&nbsp; "
+        f"En la presentación: **\"1Q 2026\" → \"{periodo_actual_texto}\"**, "
+        f"**\"4Q 2025\" → \"{periodo_anterior_texto}\"**"
+    )
 
     output_pptx = st.text_input(
         "Nombre de salida (.pptx):",
@@ -207,11 +278,11 @@ with col_der:
     else:
         plantilla_default = tpl_raw
 
-    with st.expander("Plantilla PowerPoint"):
-        template_pptx = st.text_input("Ruta/Nombre plantilla:", value=plantilla_default)
-        if not os.path.exists(template_pptx):
-            st.warning(
-                f"⚠ No se localizó el archivo: `{template_pptx}`. Verifica que exista en la carpeta `Plantillas_pptx/`.")
+    template_pptx = plantilla_default
+    if not os.path.exists(template_pptx):
+        st.warning(
+            f"⚠ No se localizó el archivo de plantilla: `{template_pptx}`. "
+            f"Verifica que exista en la carpeta `Plantillas_pptx/` o en la carpeta del proyecto.")
 
 # --- 4. EJECUCIÓN ---
 st.write("---")
@@ -254,6 +325,18 @@ if st.button(f"🚀 Ejecutar automatización para {nombre_proyecto}", type="prim
                         raise AttributeError(
                             "No se encontró 'ejecutar_reporte' ni 'ejecutar_automatizacion' en main.py.")
 
+                    # Reemplazo automático de periodos en TODA la presentación:
+                    # "1Q 2026" -> periodo actual seleccionado
+                    # "4Q 2025" -> periodo anterior calculado automáticamente
+                    if os.path.exists(ruta_salida):
+                        reemplazos = {
+                            "1Q 2026": periodo_actual_texto,
+                            "4Q 2025": periodo_anterior_texto,
+                        }
+                        n_reemplazos = reemplazar_periodos_en_presentacion(ruta_salida, reemplazos)
+                        print(f"Reemplazo de periodos: {n_reemplazos} texto(s) actualizado(s) "
+                              f"('1Q 2026' -> '{periodo_actual_texto}', '4Q 2025' -> '{periodo_anterior_texto}').")
+
         if errores:
             st.warning(f"Completado con advertencias en los bloques: {', '.join(map(str, errores))}")
         else:
@@ -272,6 +355,3 @@ if st.button(f"🚀 Ejecutar automatización para {nombre_proyecto}", type="prim
 
     except Exception as e:
         st.error(f"❌ Error durante el proceso: {e}")
-
-    with st.expander("Consola de salida (Log de ejecución)", expanded=False):
-        st.code(log_buffer.getvalue() or "Sin mensajes de consola emitidos.", language=None)
