@@ -244,6 +244,50 @@ def inyectar_grafica_barras(slide, nombre_grafico, categorias, lista_det, lista_
     print(f"Gráfica de barras '{nombre_grafico}' actualizada con éxito.")
 
 
+def agregar_fila_tabla(shape):
+    """Clona el ÚLTIMO renglón de datos de la tabla (mismo alto de fila y
+    mismo formato/estilo de celda que ya trae la plantilla) y lo agrega al
+    final, vaciando su texto. Así una 'Tabla_DIF_*' puede crecer para caber
+    todos los segmentos encontrados sin truncar datos y sin perder el
+    tamaño/estilo real de sus renglones (la fila nueva es un clon exacto de
+    la última, no un renglón genérico o comprimido)."""
+    tbl = shape._element.graphic.graphicData.tbl
+    trs = tbl.findall(qn('a:tr'))
+    if not trs:
+        return
+    last_tr = trs[-1]
+    new_tr = copy.deepcopy(last_tr)
+
+    # Vaciamos el texto previo de las celdas clonadas (conservamos formato)
+    for tc in new_tr.findall(qn('a:tc')):
+        txBody = tc.find(qn('a:txBody'))
+        if txBody is not None:
+            for p in txBody.findall(qn('a:p')):
+                for r in p.findall(qn('a:r')):
+                    p.remove(r)
+
+    last_tr.addnext(new_tr)
+
+
+def _asegurar_filas_suficientes(shape, filas_necesarias, nombre_tabla):
+    """Agrega renglones (clonando el formato del último) hasta que la tabla
+    tenga al menos `filas_necesarias` de datos (sin contar el encabezado).
+    Devuelve el nuevo total de filas de datos disponibles."""
+    tabla = shape.table
+    num_filas_datos = len(tabla.rows) - 1
+    faltantes = filas_necesarias - num_filas_datos
+
+    if faltantes > 0:
+        for _ in range(faltantes):
+            agregar_fila_tabla(shape)
+        print(f"  -> Se agregaron {faltantes} renglón(es) nuevo(s) a '{nombre_tabla}' "
+              f"para dar cabida a los {filas_necesarias} segmentos encontrados "
+              f"(antes tenía {num_filas_datos}).")
+        num_filas_datos = filas_necesarias
+
+    return num_filas_datos
+
+
 def inyectar_tablas_diferencia(slide, bloque, df_final):
     etiqueta_total = bloque['etiqueta_total']
     try:
@@ -257,17 +301,15 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
     # A. Tabla principal de diferencias
     shape_dif = buscar_shape(slide, bloque['tabla_dif'], requiere_tabla=True)
     if shape_dif is not None:
-        tabla = shape_dif.table
-        num_cols = len(tabla.columns)
-        num_filas_datos_tabla = len(tabla.rows) - 1  # sin contar encabezado
+        num_cols = len(shape_dif.table.columns)
 
-        # FIX: aviso explícito si la plantilla no tiene renglones suficientes
-        # para todos los segmentos de este trimestre, en vez de truncar el
-        # resto de la tabla en silencio con un `break`.
-        if len(df_final) > num_filas_datos_tabla:
-            print(f"ADVERTENCIA: '{bloque['tabla_dif']}' tiene {num_filas_datos_tabla} renglones de datos "
-                  f"pero hay {len(df_final)} segmentos que reportar. Los segmentos sobrantes NO se "
-                  f"escribirán: agrega renglones a la plantilla o revisa el bloque en config.py.")
+        # Si hay más segmentos que renglones en la plantilla, la tabla crece
+        # (clonando el formato/alto del último renglón) en vez de truncar los
+        # segmentos sobrantes.
+        num_filas_datos_tabla = _asegurar_filas_suficientes(
+            shape_dif, len(df_final), bloque['tabla_dif'])
+
+        tabla = shape_dif.table  # el objeto Table interno puede cambiar tras clonar renglones
 
         for i, row_data in df_final.iterrows():
             f_idx = i + 1
