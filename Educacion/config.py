@@ -15,7 +15,7 @@
 # ------------------------------------------------------------------------------
 FILE_ACTUAL = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 1Q 2026.xlsx'
 FILE_ANTERIOR = r'E:\Users\954108\Desktop\codigos_py\Presentaciones\IPN_Colaboradores\Base_resultados\Base para dashboard 4Q 2025 liberada.xlsx'
-TEMPLATE_PPTX = r'E:\Users\954108\Desktop\Satisfaccion  y Asuntos Publicos\Automatizaciones_PPT\IPN Colaboradores\IPN_Colaboradores_Educacion_automatizada.pptx'
+TEMPLATE_PPTX = r'E:\Users\954108\Desktop\Satisfaccion  y Asuntos Publicos\Automatizaciones_PPT\IPN Colaboradores\IPN_Colaboradores_Educación_automatizada.pptx'
 OUTPUT_PPTX = 'Reporte_Educacion.pptx'
 
 # Este reporte no actualiza Excel históricos, pero la app y main comparten
