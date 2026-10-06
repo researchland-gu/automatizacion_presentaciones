@@ -32,6 +32,21 @@ def procesar_bloques_nps(prs, df_actual, df_anterior, errores):
             df_1q = calculos.preparar_base_nps(df_actual, bloque, excluir_no_identificados=True)
             df_4q = calculos.preparar_base_nps(df_anterior, bloque, excluir_no_identificados=True)
 
+            if len(df_1q) == 0:
+                print(f"⚠ El filtro de este bloque no arrojó ningún caso en la base actual.")
+                print(f"  Filtros aplicados: {bloque['filtros']}")
+                df_diag = df_actual.copy()
+                for col, val in bloque['filtros']:
+                    if col in df_diag.columns:
+                        disponibles = sorted(df_diag[col].dropna().astype(str).str.strip().unique())[:15]
+                        print(f"  Valores disponibles en '{col}': {disponibles}")
+                        df_diag = df_diag[df_diag[col] == val]
+                    else:
+                        print(f"  ⚠ La columna '{col}' NO existe en la base.")
+                print(f"  Corrige columnas/valores en config.py para que coincidan con la base.")
+                errores.append(f"{nombre} (filtro sin casos)")
+                continue
+
             categorias, l_det, l_pas, l_prom = calculos.calcular_datos_barras(
                 df_barras, bloque['etiqueta_total'])
             inyectores.inyectar_grafica_barras(

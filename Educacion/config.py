@@ -1,13 +1,15 @@
 # ==============================================================================
-# CONFIGURACIÓN CENTRAL DEL REPORTE EDUCACIÓN
+# CONFIGURACIÓN CENTRAL DEL REPORTE EDUCACIÓN (versión 2)
 # Este es el ÚNICO archivo que necesitas editar cada trimestre:
 #   1. Actualiza las rutas de FILE_ACTUAL / FILE_ANTERIOR
 #
-# Plantilla oficial: 'IPN_Colaboradores_Educacion_automatizada.pptx'.
-# Todo el reporte (slides 3, 6, 7 y 8) se genera sobre esa plantilla,
-# así que debe contener las shapes de los 4 slides: Grafico_bar_ED,
-# Tabla_DIF_ED, Tabla_ANTERIO_ED, Grafico _don_ED y tarjetas ED (slide 3);
-# y las tablas Tabla_PRO/PAS/DET_MENS_ED (slides 6-8).
+# Plantilla oficial: 'IPN_Colaboradores_Educación_automatizada.pptx' (con acento).
+# El reporte cubre: NPS Grupo Salinas (slide 4, shapes SL), NPS Educación
+# por Nivel 3 (slide 6, shapes EDU) y menciones Top 10 con rubro de
+# Promotores y Pasivos (slides 7-8, Tabla_PRO/PAS_MENS_EDU).
+#
+# NOTA: en esta versión NINGÚN bloque filtra TIPO == 'Normal'
+# (fiel a los scripts originales).
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -42,8 +44,15 @@ BLOQUES_PARTICIPACION = []
 # BLOQUES NPS (barras apiladas + tabla de diferencia + dona)
 # ------------------------------------------------------------------------------
 BLOQUES_NPS = [
-    # Slide 3: Educación por Nivel 4
-    {'slide_index': 2, 'nivel_col': 'Nivel 4', 'resp_col': 'Resonsable_N4',
+    # Slide 4: Grupo Salinas por Agrupador (SIN filtro de TIPO, fiel al original)
+    {'slide_index': 3, 'nivel_col': 'Agrupador', 'resp_col': 'Resonsable_N2',
+     'filtros': [('Resonsable_N1', 'RICARDO BENJAMIN SALINAS PLIEGO')],
+     'etiqueta_total': 'Grupo Salinas',
+     'grafico_barras': 'Grafico_bar_SL', 'grafico_dona': 'Grafico _don_SL',
+     'tabla_dif': 'Tabla_DIF_SL', 'tabla_anterior': 'Tabla_ANTERIO_SL', 'sufijo_dona': 'SL'},
+
+    # Slide 6: Educación por Nivel 3 (SIN filtro de TIPO, fiel al original)
+    {'slide_index': 5, 'nivel_col': 'Nivel 3', 'resp_col': 'Resonsable_N3',
      'filtros': [('Agrupador', 'EDUCACIÓN')],
      'etiqueta_total': 'Educación',
      'grafico_barras': 'Grafico_bar_EDU', 'grafico_dona': 'Grafico _don_EDU',
@@ -51,7 +60,7 @@ BLOQUES_NPS = [
 ]
 
 # ------------------------------------------------------------------------------
-# MENCIONES TOP 10 CON RUBRO (slides 6, 7 y 8)
+# MENCIONES TOP 10 CON RUBRO (slides 7 y 8: Promotores y Pasivos)
 # Una tabla por slide: motivo (color según lista), menciones (color) y
 # rubro (gris). Filtro fijo del reporte: Agrupador == EDUCACIÓN.
 # ------------------------------------------------------------------------------
@@ -59,9 +68,8 @@ FILTRO_MENCIONES = ('Agrupador', 'EDUCACIÓN')
 TOP_N_MENCIONES = 10
 
 BLOQUES_MENCIONES_RUBRO = [
-    {'slide_index': 5, 'categoria': 'Promotor',  'tabla': 'Tabla_PRO_MENS_EDU'},
-    {'slide_index': 6, 'categoria': 'Pasivo',    'tabla': 'Tabla_PAS_MENS_EDU'},
-    {'slide_index': 7, 'categoria': 'Detractor', 'tabla': 'Tabla_DET_MENS_EDU'},
+    {'slide_index': 6, 'categoria': 'Promotor', 'tabla': 'Tabla_PRO_MENS_EDU'},
+    {'slide_index': 7, 'categoria': 'Pasivo',   'tabla': 'Tabla_PAS_MENS_EDU'},
 ]
 
 # (Lista usada por el matcheo de colores; compartida con el proyecto principal)
@@ -89,7 +97,7 @@ ESTILOS_TARJETAS = {
 MOTIVOS_NEGATIVOS = [
     "No hay apoyo de Capital Humano", "Hay demasiada presión para los colaboradores",
     "No se preocupan por sus colaboradores", "No se cotiza al 100%", "No cumplen lo que promete",
-    "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
+    "NO SABE / NO CONTESTÓ", "El ambiente laboral es malo", "Horario de trabajo extenso / no veo a mi familia",
     "Solo un día de descanso / descanso entre semana", "Me hacen descuentos adicionales (merma, faltantes, errores)",
     "No hay suficientes prestaciones/beneficios",
     "El trabajo no es para cualquier persona / debe ser apto para el puesto",

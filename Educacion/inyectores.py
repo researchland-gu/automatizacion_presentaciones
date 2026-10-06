@@ -85,6 +85,30 @@ def buscar_shape(slide, nombre, requiere_tabla=False, requiere_chart=False):
     return None
 
 
+def agregar_fila_tabla(shape):
+    """Clona el último renglón de datos de la tabla y lo agrega al final,
+    preservando su formato/tamaño real (la fila clonada queda sin texto).
+    Usado por inyectar_tablas_diferencia() cuando hay más segmentos que filas
+    en la plantilla."""
+    tbl = shape._element.graphic.graphicData.tbl
+    trs = tbl.findall(qn('a:tr'))
+    if not trs:
+        return
+
+    last_tr = trs[-1]
+    new_tr = copy.deepcopy(last_tr)
+
+    # Vaciamos el texto previo del clon, celda por celda
+    for tc in new_tr.findall(qn('a:tc')):
+        txBody = tc.find(qn('a:txBody'))
+        if txBody is not None:
+            for p in txBody.findall(qn('a:p')):
+                for r in p.findall(qn('a:r')):
+                    p.remove(r)
+
+    last_tr.addnext(new_tr)
+
+
 # ------------------------------------------------------------------------------
 # TIPO 1: Participación
 # ------------------------------------------------------------------------------
@@ -153,20 +177,11 @@ def inyectar_tabla_desglose(shape, df_resumen):
     Las filas cuyo segmento tiene 0 válidos quedan completamente en blanco."""
     tabla = shape.table
     num_cols = len(tabla.columns)
-    num_filas_datos_tabla = len(tabla.rows) - 1  # sin contar encabezado
-
-    # FIX: aviso explícito si la plantilla no alcanza para todos los
-    # segmentos, en vez de truncar el resto en silencio con un `break`.
-    if len(df_resumen) > num_filas_datos_tabla:
-        print(f"ADVERTENCIA: '{shape.name}' tiene {num_filas_datos_tabla} renglones de datos "
-              f"pero hay {len(df_resumen)} segmentos que reportar. Los segmentos sobrantes "
-              f"no se escribirán: agrega renglones a la plantilla si esto no es esperado.")
 
     for i, row in df_resumen.iterrows():
         f_idx = i + 1  # Fila 0 es el encabezado
         if f_idx >= len(tabla.rows):
-            # FIX: continue en vez de break, ya se avisó arriba.
-            continue
+            break
 
         nombre_negocio = row[df_resumen.columns[0]]
         validos = row['Validos']
@@ -213,10 +228,16 @@ def inyectar_tabla_desglose(shape, df_resumen):
 # ------------------------------------------------------------------------------
 # TIPO 2: Bloques NPS (barras + diferencia + dona)
 # ------------------------------------------------------------------------------
+def listar_shapes(slide):
+    """Nombres de todas las shapes de una diapositiva (para diagnóstico)."""
+    return sorted(shape.name for shape in slide.shapes)
+
+
 def inyectar_grafica_barras(slide, nombre_grafico, categorias, lista_det, lista_pas, lista_prom):
     shape = buscar_shape(slide, nombre_grafico, requiere_chart=True)
     if shape is None:
         print(f"⚠ No se encontró la gráfica '{nombre_grafico}'.")
+        print(f"  Shapes disponibles en esta diapositiva: {listar_shapes(slide)}")
         return
 
     chart_data = CategoryChartData()
@@ -238,50 +259,6 @@ def inyectar_grafica_barras(slide, nombre_grafico, categorias, lista_det, lista_
     print(f"Gráfica de barras '{nombre_grafico}' actualizada con éxito.")
 
 
-def agregar_fila_tabla(shape):
-    """Clona el ÚLTIMO renglón de datos de la tabla (mismo alto de fila y
-    mismo formato/estilo de celda que ya trae la plantilla) y lo agrega al
-    final, vaciando su texto. Así una 'Tabla_DIF_*' puede crecer para caber
-    todos los segmentos encontrados sin truncar datos y sin perder el
-    tamaño/estilo real de sus renglones (la fila nueva es un clon exacto de
-    la última, no un renglón genérico o comprimido)."""
-    tbl = shape._element.graphic.graphicData.tbl
-    trs = tbl.findall(qn('a:tr'))
-    if not trs:
-        return
-    last_tr = trs[-1]
-    new_tr = copy.deepcopy(last_tr)
-
-    # Vaciamos el texto previo de las celdas clonadas (conservamos formato)
-    for tc in new_tr.findall(qn('a:tc')):
-        txBody = tc.find(qn('a:txBody'))
-        if txBody is not None:
-            for p in txBody.findall(qn('a:p')):
-                for r in p.findall(qn('a:r')):
-                    p.remove(r)
-
-    last_tr.addnext(new_tr)
-
-
-def _asegurar_filas_suficientes(shape, filas_necesarias, nombre_tabla):
-    """Agrega renglones (clonando el formato del último) hasta que la tabla
-    tenga al menos `filas_necesarias` de datos (sin contar el encabezado).
-    Devuelve el nuevo total de filas de datos disponibles."""
-    tabla = shape.table
-    num_filas_datos = len(tabla.rows) - 1
-    faltantes = filas_necesarias - num_filas_datos
-
-    if faltantes > 0:
-        for _ in range(faltantes):
-            agregar_fila_tabla(shape)
-        print(f"  -> Se agregaron {faltantes} renglón(es) nuevo(s) a '{nombre_tabla}' "
-              f"para dar cabida a los {filas_necesarias} segmentos encontrados "
-              f"(antes tenía {num_filas_datos}).")
-        num_filas_datos = filas_necesarias
-
-    return num_filas_datos
-
-
 def inyectar_tablas_diferencia(slide, bloque, df_final):
     etiqueta_total = bloque['etiqueta_total']
     try:
@@ -295,20 +272,25 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
     # A. Tabla principal de diferencias
     shape_dif = buscar_shape(slide, bloque['tabla_dif'], requiere_tabla=True)
     if shape_dif is not None:
-        num_cols = len(shape_dif.table.columns)
+        tabla = shape_dif.table
+        num_cols = len(tabla.columns)
+        num_filas_datos_tabla = len(tabla.rows) - 1
 
-        # Si hay más segmentos que renglones en la plantilla, la tabla crece
-        # (clonando el formato/alto del último renglón) en vez de truncar los
-        # segmentos sobrantes.
-        num_filas_datos_tabla = _asegurar_filas_suficientes(
-            shape_dif, len(df_final), bloque['tabla_dif'])
-
-        tabla = shape_dif.table  # el objeto Table interno puede cambiar tras clonar renglones
+        # Si hay más segmentos que renglones de datos en la plantilla, se
+        # agregan renglones nuevos (clonados del último, mismo tamaño/formato)
+        # hasta que quepan todos los segmentos, en vez de truncar en silencio.
+        if len(df_final) > num_filas_datos_tabla:
+            filas_faltantes = len(df_final) - num_filas_datos_tabla
+            for _ in range(filas_faltantes):
+                agregar_fila_tabla(shape_dif)
+            print(f"  -> Se agregaron {filas_faltantes} renglón(es) a '{bloque['tabla_dif']}' "
+                  f"para ajustarse a los {len(df_final)} segmentos encontrados.")
+            tabla = shape_dif.table  # refrescar referencia tras modificar el XML
+            num_filas_datos_tabla = len(tabla.rows) - 1
 
         for i, row_data in df_final.iterrows():
             f_idx = i + 1
             if f_idx >= len(tabla.rows):
-                # FIX: continue en vez de break — ya se avisó arriba.
                 continue
 
             # Fila sin casos en el periodo actual: se limpia por completo
@@ -339,12 +321,11 @@ def inyectar_tablas_diferencia(slide, bloque, df_final):
             if num_cols > 1:
                 tabla.cell(f_idx, 1).text = fmt_pct(row_data['ipn_4q'])
             if num_cols > 2:
-                # FIX: con how='left' en calculos.py, un segmento nuevo este
-                # trimestre (sin pareja el periodo anterior) llega aquí con
-                # ipn_3q = NaN; se muestra '–' en vez de '' para dejar claro
-                # que no es un 0.0% real, sino "sin dato".
-                ipn_ant = row_data['ipn_3q']
-                tabla.cell(f_idx, 2).text = fmt_pct(ipn_ant) if not pd.isna(ipn_ant) else '–'
+                # FIX: con el merge how='left', un segmento nuevo (sin datos en
+                # el periodo anterior) trae NaN en vez de 0; se muestra '–' en
+                # vez de '0.0%' para no dar a entender que el IPN anterior fue cero.
+                ipn_3q = row_data['ipn_3q']
+                tabla.cell(f_idx, 2).text = '–' if pd.isna(ipn_3q) else fmt_pct(ipn_3q)
             if num_cols > 3:
                 d_val = row_data['dif']
                 if pd.isna(d_val):
@@ -803,20 +784,12 @@ def inyectar_menciones_rubro(slide, nombre_tabla, top_motivos):
 
     tabla = shape.table
     num_cols = len(tabla.columns)
-    num_filas_datos_tabla = len(tabla.rows) - 1  # sin contar encabezado
     print(f"Inyectando Top {len(top_motivos)} de motivos en '{nombre_tabla}'...")
-
-    # FIX: aviso explícito si la plantilla no alcanza para todo el Top N,
-    # en vez de truncar el resto en silencio con un `break`.
-    if len(top_motivos) > num_filas_datos_tabla:
-        print(f"ADVERTENCIA: '{nombre_tabla}' tiene {num_filas_datos_tabla} renglones de datos "
-              f"pero hay {len(top_motivos)} motivos en el Top N. Los sobrantes no se escribirán.")
 
     for i, row_data in top_motivos.iterrows():
         f_idx = i + 1
         if f_idx >= len(tabla.rows):
-            # FIX: continue en vez de break, ya se avisó arriba.
-            continue
+            break
 
         motivo = str(row_data['Motivo'])
         color = obtener_color_mencion(motivo)
