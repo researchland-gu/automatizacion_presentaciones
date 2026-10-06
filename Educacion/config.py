@@ -46,8 +46,8 @@ BLOQUES_NPS = [
     {'slide_index': 2, 'nivel_col': 'Nivel 4', 'resp_col': 'Resonsable_N4',
      'filtros': [('Agrupador', 'EDUCACIÓN')],
      'etiqueta_total': 'Educación',
-     'grafico_barras': 'Grafico_bar_ED', 'grafico_dona': 'Grafico _don_ED',
-     'tabla_dif': 'Tabla_DIF_ED', 'tabla_anterior': 'Tabla_ANTERIO_ED', 'sufijo_dona': 'ED'},
+     'grafico_barras': 'Grafico_bar_EDU', 'grafico_dona': 'Grafico _don_EDU',
+     'tabla_dif': 'Tabla_DIF_EDU', 'tabla_anterior': 'Tabla_ANTERIO_EDU', 'sufijo_dona': 'EDU'},
 ]
 
 # ------------------------------------------------------------------------------
@@ -59,9 +59,9 @@ FILTRO_MENCIONES = ('Agrupador', 'EDUCACIÓN')
 TOP_N_MENCIONES = 10
 
 BLOQUES_MENCIONES_RUBRO = [
-    {'slide_index': 5, 'categoria': 'Promotor',  'tabla': 'Tabla_PRO_MENS_ED'},
-    {'slide_index': 6, 'categoria': 'Pasivo',    'tabla': 'Tabla_PAS_MENS_ED'},
-    {'slide_index': 7, 'categoria': 'Detractor', 'tabla': 'Tabla_DET_MENS_ED'},
+    {'slide_index': 5, 'categoria': 'Promotor',  'tabla': 'Tabla_PRO_MENS_EDU'},
+    {'slide_index': 6, 'categoria': 'Pasivo',    'tabla': 'Tabla_PAS_MENS_EDU'},
+    {'slide_index': 7, 'categoria': 'Detractor', 'tabla': 'Tabla_DET_MENS_EDU'},
 ]
 
 # (Lista usada por el matcheo de colores; compartida con el proyecto principal)
